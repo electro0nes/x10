@@ -143,7 +143,7 @@ def run_fallparams_on_files(domain_files, output_file):
 
                 fallparams_params = []
                 if os.path.exists("parameters.txt") and os.path.getsize("parameters.txt") > 0:
-                    with open("parameters.txt", 'r') as pf:
+                    with open("parameters.txt", 'r', encoding='utf-8', errors='ignore') as pf:
                         fallparams_params = [p.strip() for p in pf.readlines()]
                 else:
                     print(f"parameters.txt is missing or empty after running fallparams on {url} from {part_file}")
