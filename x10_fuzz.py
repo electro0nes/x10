@@ -69,7 +69,7 @@ def main(domain, run_katana):
     urls = []
 
     # Run X9_PASSIVE to get URLs
-    print(f"Running x9_passive for domain: {domain}")
+    print(f"Running x10_passive for domain: {domain}")
     passive_file = f"{domain}.passive"
 
     if not os.path.exists(passive_file):

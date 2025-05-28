@@ -58,8 +58,8 @@ def main():
     urls = get_input_source()
     if not urls:
         print("Usage examples:")
-        print("  echo domain.com | python3 x9_active.py")
-        print("  cat domains.txt | python3 x9_active.py")
+        print("  echo domain.com | python3 x10_active.py")
+        print("  cat domains.txt | python3 x10_active.py")
         sys.exit(1)
 
     for url in urls:

@@ -111,7 +111,7 @@ def run_x9_on_files(domain_files, output_file):
                     print(f"❌ Skipping {url} (JSON response, no XSS possible)")
                     continue  # Skip URLs with JSON responses
 
-                print(f"Running X9 on {url} from {part_file}")
+                print(f"Running X10 on {url} from {part_file}")
                 x9_command = f"python3 {SCRIPT_ROUTE} -u '{url}' -gs all -vs suffix -v '<b/electro0neinject,\"electro0neinject\"',\'electro0neinject\''' -p parameters/top_xss_parameter.txt --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent"
                 output = run_command_in_zsh(x9_command)
                 if output and "electro0neinject" in output: 
@@ -119,7 +119,7 @@ def run_x9_on_files(domain_files, output_file):
 
                 if output_file:
                     with open(output_file, 'a') as log_file:
-                        log_file.write(f"--- Running X9 on {url} from {part_file} ---\n{output}\n")
+                        log_file.write(f"--- Running X10 on {url} from {part_file} ---\n{output}\n")
 
             os.remove(part_file)
             print(f"Removed processed file: {part_file}")
@@ -196,7 +196,7 @@ def filter_urls(urls):
 
 def main(parameter_discovery=False):
     """Main function to run the attack based on input."""
-    output_file = os.path.join('fuzz', 'x9.res')
+    output_file = os.path.join('fuzz', 'x10.res')
 
     domain_files = group_files_by_domain()
     if not domain_files:
@@ -207,14 +207,14 @@ def main(parameter_discovery=False):
         print("Running parameter discovery with fallparams.")
         run_fallparams_on_files(domain_files, output_file)
     else:
-        print("Running X9 directly on part files.")
+        print("Running X10 directly on part files.")
         run_x9_on_files(domain_files, output_file)
 
     print(f"Results saved in {output_file}")
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
-        print("Usage: python3 x9_run.py [true]")
+        print("Usage: python3 x10_run.py [true]")
         sys.exit(1)
 
     parameter_discovery = len(sys.argv) == 2 and sys.argv[1].lower() == 'true'

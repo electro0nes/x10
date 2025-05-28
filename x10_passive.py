@@ -106,8 +106,8 @@ if __name__ == "__main__":
     user_input = get_input_source()
     if not user_input:
         print("Usage examples:")
-        print("  echo domain.com | python3 x9_passive.py")
-        print("  cat domains.txt | python3 x9_passive.py")
+        print("  echo domain.com | python3 x10_passive.py")
+        print("  cat domains.txt | python3 x10_passive.py")
         sys.exit(1)
 
     process_input(user_input)
