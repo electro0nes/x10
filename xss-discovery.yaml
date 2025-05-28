@@ -13,15 +13,14 @@ requests:
     matchers:
       - type: word
         words:
-          - "<b/qwevin"
-          - 'qwevin""'
-          - "qwevin''"
-          - '""qwevin'
-          - "''qwevin"
-          - 'qwevin\\""'
-          - "qwevin\\''"
-          - '"\\"qwevin'
-          - "'\\'qwevin"
+          - ">xxxx"
+          - 'xxxx""'
+          - "xxxx''"
+          - 'xxxx\\""'
+          - "xxxx\\''"
+          - "xxxx)"
+          - "(xxxx"
+          - "xxxx;"
         part: body
         condition: or
 
@@ -32,14 +31,13 @@ requests:
     matchers:
       - type: word
         words:
-          - "<b/qwevin"
-          - 'qwevin""'
-          - "qwevin''"
-          - '""qwevin'
-          - "''qwevin"
-          - 'qwevin\\""'
-          - "qwevin\\''"
-          - '"\\"qwevin'
-          - "'\\'qwevin"
+          - ">xxxx"
+          - 'xxxx""'
+          - "xxxx''"
+          - 'xxxx\\""'
+          - "xxxx\\''"
+          - "xxxx)"
+          - "(xxxx"
+          - "xxxx;"
         part: body
         condition: or

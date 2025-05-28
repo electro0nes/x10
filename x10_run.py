@@ -120,9 +120,9 @@ def run_x9_on_files(domain_files, output_file):
                     continue  # Skip URLs with JSON responses
 
                 print(f"Running X10 on {url} from {part_file}")
-                x9_command = f"python3 {SCRIPT_ROUTE} -u '{url}' -gs all -vs suffix -v '<b/qwevin,\"qwevin\"',\'qwevin\''' -p parameters/top_xss_parameter.txt --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent"
+                x9_command = f'python3 {SCRIPT_ROUTE} -u \'{url}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p parameters/top_xss_parameter.txt --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent'
                 output = run_command_in_zsh(x9_command)
-                if output and "electro0neinject" in output: 
+                if output and "xxxx" in output: 
                     send_discord_alert(output, part_file)
 
                 if output_file:
@@ -162,7 +162,6 @@ def run_fallparams_on_files(domain_files, output_file):
                         top_xss_params = [p.strip() for p in tf if p.strip()]
 
                 combined_params = fallparams_params + top_xss_params
-
                 with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_param_file:
                     for p in combined_params:
                         temp_param_file.write(f"{p}\n")
@@ -170,12 +169,11 @@ def run_fallparams_on_files(domain_files, output_file):
 
                 json_output = {
                     "urls": [url],
-                    "params": fallparams_params
+                    "params": top_xss_params
                 }
-
-                x9_command = f"python3 {SCRIPT_ROUTE} -j '{json.dumps(json_output)}' -gs all -vs suffix -v '<b/qwevin,\"qwevin\"',\'qwevin\''' -p {temp_param_path} --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent"
+                x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent'
                 output_j = run_command_in_zsh(x9_command)
-                if output_j and "electro0neinject" in output_j:
+                if output_j and "xxxx" in output_j:
                     send_discord_alert(output_j, part_file)
 
                 if output_file:

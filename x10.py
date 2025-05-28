@@ -1,4 +1,3 @@
-#x10.py
 import argparse
 import json
 import requests
@@ -13,6 +12,7 @@ DEFAULT_HEADERS = {
     "Accept-Encoding": "gzip, deflate, br",
     "X-Forwarded-For": "127.0.0.1"
 }
+
 def print_banner():
     banner = """
     ============================================================
@@ -22,19 +22,15 @@ def print_banner():
 
 def parse_headers(header_list):
     headers = DEFAULT_HEADERS.copy()
-
-    # Override or add custom headers on top
     if header_list:
         for header in header_list:
             if ':' in header:
                 key, value = header.split(':', 1)
                 headers[key.strip()] = value.strip()
-
     return headers
+
 def read_parameters(param_source):
     all_params = []
-
-    # Split by comma to allow multiple entries
     sources = param_source.split(',')
 
     for source in sources:
@@ -119,35 +115,30 @@ def process_json_input(json_input):
 def main():
     parser = argparse.ArgumentParser(description="Electro0ne X10 - Bug Bounty Vulnerability Discovery Tool")
 
-    # Define the arguments
     parser.add_argument('-u', '--url', help="Single URL to target")
     parser.add_argument('-l', '--list', help="List of URLs to target")
     parser.add_argument('-j', '--json', help="JSON input with urls and parameters")
     parser.add_argument('-p', '--params', help="File or comma-separated list of parameters to fuzz")
-    parser.add_argument('-c', '--chunk', help="Chunk size of parameters", type=int, default=15)
-    parser.add_argument('-v', '--value', help="Single value for fuzzing", required=True)
-    parser.add_argument('-gs', '--generate_strategy', choices=['normal', 'ignore', 'combine', 'all'], required=True, help="""Select the mode strategy from the available choice:
-        - Normal: Remove all parameters and put the wordlist
-        - Combine: Pitchfork combine on the existing parameters
-        - Ignore: Don't touch the URL and put the wordlist
-        - All: All in one method""")
-    parser.add_argument('-vs', '--value_strategy', choices=['replace', 'suffix'], required=True, help="""Select the mode strategy from the available choices:
-        - Replace: Replace the value with gathered value
-        - Suffix: Append the value to the end of the parameters""")
+    parser.add_argument('-c', '--chunk', help="Chunk size of parameters", type=int, default=20)
+    parser.add_argument('-v', '--value', help="Comma-separated values for fuzzing", required=True)
+    parser.add_argument('-gs', '--generate_strategy', choices=['normal', 'ignore', 'combine', 'all'], required=True)
+    parser.add_argument('-vs', '--value_strategy', choices=['replace', 'suffix'], required=True)
     parser.add_argument('-s', '--silent', help="Silent mode", action='store_true')
     parser.add_argument('-o', '--output', help="Output format", choices=['text', 'json'], default='text')
-    parser.add_argument('-m', '--method', choices=['get', 'post'], help="HTTP method to use for sending requests", default=None)
-    parser.add_argument('-d', '--data', help="Data to send with POST requests (only used if method is POST)", default=None)
-    parser.add_argument('-H', '--header', action='append', help="Custom headers (e.g. 'User-Agent: CustomAgent'). Use multiple times for multiple headers.")
-    parser.add_argument('--rate-limit', type=int, help="Rate limit for sending requests (requests per second)")
+    parser.add_argument('-m', '--method', choices=['get', 'post'], help="HTTP method", default=None)
+    parser.add_argument('-d', '--data', help="Data for POST requests", default=None)
+    parser.add_argument('-H', '--header', action='append', help="Custom headers")
+    parser.add_argument('--rate-limit', type=int, help="Rate limit (requests per second)")
     args = parser.parse_args()
 
-    # Handle silent mode
-    if args.silent:
+    if not args.silent:
+        print_banner()
+    else:
         import sys
         sys.stdout = open('/dev/null', 'w')
 
-    # Check if the params argument is provided
+    values = args.value.split(',')
+
     if args.params:
         try:
             params = read_parameters(args.params)
@@ -155,13 +146,10 @@ def main():
             print(f"Error reading parameters: {e}")
             return
     else:
-        # If no params are provided, use an empty list
         params = []
 
-    # Store all generated URLs
     all_generated_urls = []
 
-    # Handle JSON input
     if args.json:
         urls, params_from_json = process_json_input(args.json)
         if not params:
@@ -170,28 +158,28 @@ def main():
             params.extend(params_from_json)
 
         for url in urls:
-            generated_urls = fuzz_parameters(url, params, args.chunk, args.value, args.value_strategy)
+            for val in values:
+                generated_urls = fuzz_parameters(url, params, args.chunk, val, args.value_strategy)
+                all_generated_urls.extend(generated_urls)
+
+    if args.url:
+        for val in values:
+            generated_urls = fuzz_parameters(args.url, params, args.chunk, val, args.value_strategy)
             all_generated_urls.extend(generated_urls)
 
-    # Handle single URL
-    if args.url:
-        generated_urls = fuzz_parameters(args.url, params, args.chunk, args.value, args.value_strategy)
-        all_generated_urls.extend(generated_urls)
-
-    # Handle list of URLs
     if args.list:
         try:
             with open(args.list, 'r') as f:
                 urls = f.readlines()
                 for url in urls:
                     url = url.strip()
-                    generated_urls = fuzz_parameters(url, params, args.chunk, args.value, args.value_strategy)
-                    all_generated_urls.extend(generated_urls)
+                    for val in values:
+                        generated_urls = fuzz_parameters(url, params, args.chunk, val, args.value_strategy)
+                        all_generated_urls.extend(generated_urls)
         except FileNotFoundError:
             print(f"File not found: {args.list}")
             return
 
-    # Output results based on format
     if args.output == 'json':
         json_output = [{"url": urlunparse(urlparse(url)._replace(query='')), "params": parse_qs(urlparse(url).query)} for url in all_generated_urls]
         print(json.dumps(json_output, indent=2))

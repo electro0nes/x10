@@ -1,4 +1,4 @@
-#x9_fuzz.py
+# x9_fuzz.py
 import subprocess
 import sys
 import os
@@ -33,11 +33,28 @@ def parse_domain(url):
     domain = parsed_url.netloc
     return domain
 
-def replace_http_with_https(url):
-    """Replace 'http' with 'https' in the URL."""
-    if url.startswith('http://'):
-        return 'https://' + url[7:]
-    return url
+def normalize_url(url):
+    """Convert HTTP to HTTPS and remove :80 or :443 from URLs."""
+    parsed = urlparse(url)
+
+    # Remove :80 for http and :443 for https
+    netloc = parsed.netloc
+    if parsed.scheme == "http" and netloc.endswith(":80"):
+        netloc = netloc[:-3]
+    elif parsed.scheme == "https" and netloc.endswith(":443"):
+        netloc = netloc[:-4]
+
+    # Replace scheme with https
+    scheme = "https"
+
+    # Rebuild the URL
+    normalized_url = f"{scheme}://{netloc}{parsed.path}"
+    if parsed.query:
+        normalized_url += f"?{parsed.query}"
+    if parsed.fragment:
+        normalized_url += f"#{parsed.fragment}"
+
+    return normalized_url
 
 def split_and_save_urls(urls, base_domain, lines_per_file=1000):
     """Splits a list of URLs into multiple files with a specific number of URLs per file."""
@@ -81,10 +98,10 @@ def main(domain, run_katana):
             urls.extend(file.read().splitlines())
         print(f"Read {len(urls)} URLs from passive file")
 
-    # Replace 'http' with 'https' in all URLs
-    urls = [replace_http_with_https(url) for url in urls]
+    # Normalize URLs (https + remove :80/:443)
+    urls = [normalize_url(url) for url in urls]
 
-    # Optionally run nice_katana
+    # Optionally run x10_active
     if run_katana.lower() == 'true':
         print(f"Running x10_active for domain: {domain}")
         katana_command = f"python3 x10_active.py {domain}"
@@ -94,23 +111,24 @@ def main(domain, run_katana):
         if os.path.exists(katana_file):
             with open(katana_file, 'r') as f:
                 katana_urls = f.read().splitlines()
+                katana_urls = [normalize_url(url) for url in katana_urls]
                 urls.extend(katana_urls)
                 print(f"Added {len(katana_urls)} URLs from {katana_file}")
         else:
             print(f"No katana output file found: {katana_file}")
 
-    # Remove any duplicate URLs while preserving order
+    # Remove duplicates
     urls = list(dict.fromkeys(urls))
     print(f"Total unique URLs: {len(urls)}")
 
-    # Split and save URLs
+    # Split and save
     if urls:
         print("Splitting URLs into parts...")
         split_and_save_urls(urls, domain)
     else:
         print("No URLs found.")
 
-    # Clean up temporary files
+    # Clean up
     cleanup_files(domain)
 
 if __name__ == "__main__":
