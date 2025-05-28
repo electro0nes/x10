@@ -167,7 +167,6 @@ def run_fallparams_on_files(domain_files, output_file):
 
                 x9_command = f"python3 {SCRIPT_ROUTE} -j '{json.dumps(json_output)}' -gs all -vs suffix -v '<b/electro0neinject,\"electro0neinject\"',\'electro0neinject\''' -p {temp_param_path} --rate-limit 1 -c 25 | nuclei -t {NUCLEI_ROUTE} -silent"
                 output_j = run_command_in_zsh(x9_command)
-                print(temp_param_path)
                 if output_j and "electro0neinject" in output_j:
                     send_discord_alert(output_j, part_file)
 
