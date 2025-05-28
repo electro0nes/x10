@@ -21,17 +21,25 @@ def ensure_directory_exists(directory):
         print(f"Created directory: {directory}")
 
 def is_json_response(url):
-    """Check if the URL returns a JSON response by inspecting the Content-Type header."""
+    """Check if the URL is reachable and returns a JSON-like response."""
     try:
-        response = requests.get(url, timeout=5)  # Make a request to get headers
+        response = requests.get(url, timeout=5)  # Try to connect
+
         content_type = response.headers.get("Content-Type", "").lower()
+
         return (
             "application/json" in content_type or
             "text/javascript" in content_type
         )
+    except requests.exceptions.ConnectionError:
+        print(f"❌ Skipping {url} (Connection refused or unreachable)")
+        return True  # Skip it
+    except requests.exceptions.Timeout:
+        print(f"❌ Skipping {url} (Timeout)")
+        return True  # Skip it
     except Exception as e:
-        print(f"⚠️ Error checking Content-Type: {str(e)}")
-        return False 
+        print(f"⚠️ Skipping {url} (Unknown error: {e})")
+        return True  # Skip it
 
 def send_discord_alert(nuclei_output, part_file):
     """Send a Discord notification with ANSI-colored output inside a code block."""
@@ -112,7 +120,7 @@ def run_x9_on_files(domain_files, output_file):
                     continue  # Skip URLs with JSON responses
 
                 print(f"Running X10 on {url} from {part_file}")
-                x9_command = f"python3 {SCRIPT_ROUTE} -u '{url}' -gs all -vs suffix -v '<b/electro0neinject,\"electro0neinject\"',\'electro0neinject\''' -p parameters/top_xss_parameter.txt --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent"
+                x9_command = f"python3 {SCRIPT_ROUTE} -u '{url}' -gs all -vs suffix -v '<b/qwevin,\"qwevin\"',\'qwevin\''' -p parameters/top_xss_parameter.txt --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent"
                 output = run_command_in_zsh(x9_command)
                 if output and "electro0neinject" in output: 
                     send_discord_alert(output, part_file)
@@ -165,7 +173,7 @@ def run_fallparams_on_files(domain_files, output_file):
                     "params": fallparams_params
                 }
 
-                x9_command = f"python3 {SCRIPT_ROUTE} -j '{json.dumps(json_output)}' -gs all -vs suffix -v '<b/electro0neinject,\"electro0neinject\"',\'electro0neinject\''' -p {temp_param_path} --rate-limit 1 -c 25 | nuclei -t {NUCLEI_ROUTE} -silent"
+                x9_command = f"python3 {SCRIPT_ROUTE} -j '{json.dumps(json_output)}' -gs all -vs suffix -v '<b/qwevin,\"qwevin\"',\'qwevin\''' -p {temp_param_path} --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent"
                 output_j = run_command_in_zsh(x9_command)
                 if output_j and "electro0neinject" in output_j:
                     send_discord_alert(output_j, part_file)

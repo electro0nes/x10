@@ -27,3 +27,7 @@ enddate
 d
 redirect_uri
 currentURL
+redirect_url
+redirectUrl
+redirectUri
+_method

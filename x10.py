@@ -124,7 +124,7 @@ def main():
     parser.add_argument('-l', '--list', help="List of URLs to target")
     parser.add_argument('-j', '--json', help="JSON input with urls and parameters")
     parser.add_argument('-p', '--params', help="File or comma-separated list of parameters to fuzz")
-    parser.add_argument('-c', '--chunk', help="Chunk size of parameters", type=int, default=0)
+    parser.add_argument('-c', '--chunk', help="Chunk size of parameters", type=int, default=15)
     parser.add_argument('-v', '--value', help="Single value for fuzzing", required=True)
     parser.add_argument('-gs', '--generate_strategy', choices=['normal', 'ignore', 'combine', 'all'], required=True, help="""Select the mode strategy from the available choice:
         - Normal: Remove all parameters and put the wordlist
