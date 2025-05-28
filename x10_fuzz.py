@@ -86,8 +86,8 @@ def main(domain, run_katana):
 
     # Optionally run nice_katana
     if run_katana.lower() == 'true':
-        print(f"Running x9_active for domain: {domain}")
-        katana_command = f"python3 x9_active.py {domain}"
+        print(f"Running x10_active for domain: {domain}")
+        katana_command = f"python3 x10_active.py {domain}"
         katana_output = run_command_in_zsh(katana_command)
     
         katana_file = f"{domain}.katana"
