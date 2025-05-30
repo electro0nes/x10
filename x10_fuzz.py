@@ -101,21 +101,29 @@ def main(domain, run_katana):
     # Normalize URLs (https + remove :80/:443)
     urls = [normalize_url(url) for url in urls]
 
-    # Optionally run x10_active
-    if run_katana.lower() == 'true':
-        print(f"Running x10_active for domain: {domain}")
-        katana_command = f"python3 x10_active.py {domain}"
-        katana_output = run_command_in_zsh(katana_command)
-    
-        katana_file = f"{domain}.katana"
+    # Run katana on each unique host from passive URLs
+    unique_hosts = set()
+    for url in urls:
+        parsed = urlparse(url)
+        if parsed.netloc:
+            unique_hosts.add(parsed.netloc)
+    katana_urls = []
+    for host in unique_hosts:
+        print(f"Running x10_active for host: {host}")
+        katana_command = f"python3 x10_active.py {host}"
+        run_command_in_zsh(katana_command)
+        katana_file = f"{host}.katana"
         if os.path.exists(katana_file):
             with open(katana_file, 'r') as f:
-                katana_urls = f.read().splitlines()
-                katana_urls = [normalize_url(url) for url in katana_urls]
-                urls.extend(katana_urls)
-                print(f"Added {len(katana_urls)} URLs from {katana_file}")
+                host_katana_urls = f.read().splitlines()
+                host_katana_urls = [normalize_url(url) for url in host_katana_urls]
+                katana_urls.extend(host_katana_urls)
+            print(f"Added {len(host_katana_urls)} URLs from {katana_file}")
         else:
             print(f"No katana output file found: {katana_file}")
+
+    # Add katana URLs to the main list
+    urls.extend(katana_urls)
 
     # Remove duplicates
     urls = list(dict.fromkeys(urls))

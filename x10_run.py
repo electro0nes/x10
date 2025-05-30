@@ -8,6 +8,8 @@ import datetime
 from collections import defaultdict
 from dotenv import load_dotenv  
 import tempfile
+import argparse
+import shlex
 load_dotenv()
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
@@ -106,7 +108,8 @@ def group_files_by_domain():
     return domain_files
 
 def run_x9_on_files(domain_files, output_file):
-    """Run X9 and check for XSS detections."""
+    """Run X9 and collect all fuzzed URLs, then run nuclei in batch."""
+    all_fuzzed_urls = []
     for domain_prefix, files in domain_files.items():
         for part_file in files:
             with open(part_file, 'r') as file:
@@ -119,21 +122,26 @@ def run_x9_on_files(domain_files, output_file):
                     print(f"❌ Skipping {url} (JSON response, no XSS possible)")
                     continue  # Skip URLs with JSON responses
 
-                print(f"Running X10 on {url} from {part_file}")
-                x9_command = f'python3 {SCRIPT_ROUTE} -u \'{url}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p parameters/top_xss_parameter.txt --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent'
+                print(f"Generating fuzzed URLs for {url} from {part_file}")
+                x9_command = f'python3 {SCRIPT_ROUTE} -u \'{url}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p parameters/top_xss_parameter.txt --rate-limit 1'
                 output = run_command_in_zsh(x9_command)
-                if output and "xxxx" in output: 
-                    send_discord_alert(output, part_file)
+                if output:
+                    fuzzed_urls = [line.strip() for line in output.splitlines() if line.strip()]
+                    all_fuzzed_urls.extend(fuzzed_urls)
 
                 if output_file:
                     with open(output_file, 'a') as log_file:
-                        log_file.write(f"--- Running X10 on {url} from {part_file} ---\n{output}\n")
+                        log_file.write(f"--- Fuzzed URLs for {url} from {part_file} ---\n{output}\n")
 
             os.remove(part_file)
             print(f"Removed processed file: {part_file}")
 
+    # After all fuzzed URLs are collected, run nuclei in batch
+    batch_run_nuclei(all_fuzzed_urls)
+
 def run_fallparams_on_files(domain_files, output_file):
-    """Run fallparams on each URL in each file one by one and process them individually."""
+    """Run fallparams on each URL, collect all fuzzed URLs, then run nuclei in batch."""
+    all_fuzzed_urls = []
     for domain_prefix, files in domain_files.items():
         for part_file in files:
             with open(part_file, 'r') as file:
@@ -171,17 +179,21 @@ def run_fallparams_on_files(domain_files, output_file):
                     "urls": [url],
                     "params": top_xss_params
                 }
-                x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1 | nuclei -t {NUCLEI_ROUTE} -silent'
+                x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1'
                 output_j = run_command_in_zsh(x9_command)
-                if output_j and "xxxx" in output_j:
-                    send_discord_alert(output_j, part_file)
+                if output_j:
+                    fuzzed_urls = [line.strip() for line in output_j.splitlines() if line.strip()]
+                    all_fuzzed_urls.extend(fuzzed_urls)
 
                 if output_file:
                     with open(output_file, 'a') as log_file:
-                        log_file.write(f"--- Processed {url} from {part_file} ---\n{output_j}\n")
+                        log_file.write(f"--- Fuzzed URLs for {url} from {part_file} ---\n{output_j}\n")
 
             os.remove(part_file)
             print(f"Removed processed file: {part_file}")
+
+    # After all fuzzed URLs are collected, run nuclei in batch
+    batch_run_nuclei(all_fuzzed_urls)
 
 def filter_urls(urls):
     """Filter out URLs that end with unwanted file extensions."""
@@ -200,29 +212,166 @@ def filter_urls(urls):
 
     return filtered_urls
 
-def main(parameter_discovery=False):
-    """Main function to run the attack based on input."""
-    output_file = os.path.join('fuzz', 'x10.res')
+def collect_urls_from_fuzz():
+    """Collect all URLs from fuzz/*.part files."""
+    urls = []
+    fuzz_dir = 'fuzz'
+    if not os.path.exists(fuzz_dir):
+        return urls
+    for fname in os.listdir(fuzz_dir):
+        if fname.endswith('.part'):
+            with open(os.path.join(fuzz_dir, fname), 'r') as f:
+                urls.extend([line.strip() for line in f if line.strip()])
+    return urls
 
-    domain_files = group_files_by_domain()
-    if not domain_files:
-        print("No files to process in the fuzz directory!")
+def batch_run_nuclei(urls):
+    if not urls:
+        print("No URLs to scan with nuclei.")
         return
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
+        for url in urls:
+            tmp.write(url + '\n')
+        tmp_path = tmp.name
+    print(f"[+] Running nuclei on {len(urls)} URLs...")
+    nuclei_cmd = f"nuclei -l {tmp_path} -t {NUCLEI_ROUTE} -silent"
+    output = run_command_in_zsh(nuclei_cmd)
+    os.remove(tmp_path)
+    # Log nuclei output to fuzz/x10.res
+    ensure_directory_exists('fuzz')
+    output_file = os.path.join('fuzz', 'x10.res')
+    ensure_directory_exists(os.path.dirname(output_file))
+    with open(output_file, 'a') as log_file:
+        log_file.write(f"--- Nuclei batch output ---\n{output}\n")
+    # If 'xxxx' is in the output, send a Discord alert
+    if output and "xxxx" in output:
+        send_discord_alert(output, part_file=None)
 
-    if parameter_discovery:
-        print("Running parameter discovery with fallparams.")
-        run_fallparams_on_files(domain_files, output_file)
+def run_subfinder_dnsx_httpx(domain):
+    """Return list of alive subdomains using subfinder, dnsx, httpx."""
+    cmd = f"subfinder -d {shlex.quote(domain)} -silent | dnsx -silent | httpx -silent"
+    print(f"[+] Discovering subdomains for {domain}...")
+    output = run_command_in_zsh(cmd)
+    subdomains = [line.strip() for line in output.splitlines() if line.strip()]
+    return subdomains
+
+def run_x10py_generate_urls(url):
+    """Run x10.py to generate fuzzed URLs for a single URL input."""
+    cmd = f'python3 x10.py -u {url} -p parameters/top_xss_parameter.txt -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" '
+    output = run_command_in_zsh(cmd)
+    print(cmd)
+    urls = [line.strip() for line in output.splitlines() if line.strip()]
+    return urls
+
+def main():
+    parser = argparse.ArgumentParser(description="X10 Advanced XSS Discovery Runner")
+    parser.add_argument('mode', choices=['domain', 'wildcard', 'url'], help='Mode of operation: domain, wildcard, or url')
+    parser.add_argument('input', help='Domain, wildcard domain (*.domain.tld), or URL')
+    parser.add_argument('--fallparams', action='store_true', help='Enable parameter discovery with fallparams')
+    args = parser.parse_args()
+
+    if args.mode == 'domain':
+        print(f"[MODE: DOMAIN] Running passive + active + x10_run + nuclei for {args.input}")
+        run_command_in_zsh(f"python3 x10_fuzz.py {shlex.quote(args.input)} true")
+        if args.fallparams:
+            print("[+] Running fallparams pipeline...")
+            output_file = os.path.join('fuzz', 'x10.res')
+            domain_files = group_files_by_domain()
+            run_fallparams_on_files(domain_files, output_file)
+        else:
+            print("[+] Running XSS pipeline...")
+            output_file = os.path.join('fuzz', 'x10.res')
+            domain_files = group_files_by_domain()
+            run_x9_on_files(domain_files, output_file)
+        urls = collect_urls_from_fuzz()
+        batch_run_nuclei(urls)
+
+    elif args.mode == 'wildcard':
+        print(f"[MODE: WILDCARD] Running katana only for all subdomains and main domain for {args.input}")
+        domain = args.input.replace('*.', '')
+        subdomains = run_subfinder_dnsx_httpx(domain)
+        # Ensure the main domain is included
+        if domain not in subdomains:
+            subdomains.append(domain)
+        print(f"[+] Found {len(subdomains)} alive subdomains (including main domain).")
+        # Run katana (x10_active.py) on each subdomain and main domain
+        all_katana_urls = []
+        for sub in subdomains:
+            print(f"Running x10_active.py for: {sub}")
+            run_command_in_zsh(f"python3 x10_active.py {shlex.quote(sub)}")
+            katana_file = f"{sub}.katana"
+            if os.path.exists(katana_file):
+                with open(katana_file, 'r') as f:
+                    katana_urls = [line.strip() for line in f if line.strip()]
+                    all_katana_urls.extend(katana_urls)
+                print(f"Added {len(katana_urls)} URLs from {katana_file}")
+            else:
+                print(f"No katana output file found: {katana_file}")
+        # Deduplicate
+        all_katana_urls = list(dict.fromkeys(all_katana_urls))
+        print(f"Total unique katana URLs: {len(all_katana_urls)}")
+        # Write to fuzz/domain.part1 for compatibility with rest of pipeline
+        ensure_directory_exists('fuzz')
+        part_file = os.path.join('fuzz', f"{domain}.part1")
+        with open(part_file, 'w') as f:
+            for url in all_katana_urls:
+                f.write(url + '\n')
+        # Now run the rest of the pipeline
+        output_file = os.path.join('fuzz', 'x10.res')
+        domain_files = group_files_by_domain()
+        if args.fallparams:
+            print("[+] Running fallparams pipeline...")
+            run_fallparams_on_files(domain_files, output_file)
+        else:
+            print("[+] Running XSS pipeline...")
+            run_x9_on_files(domain_files, output_file)
+        urls = collect_urls_from_fuzz()
+        batch_run_nuclei(urls)
+
+    elif args.mode == 'url':
+        print(f"[MODE: URL] Running x10.py + param + nuclei for {args.input}")
+        output_file = os.path.join('fuzz', 'x10.res')
+        ensure_directory_exists(os.path.dirname(output_file))
+        if args.fallparams:
+            print("[+] Running fallparams for single URL...")
+            # Run fallparams on the URL
+            run_command_in_zsh(f"fallparams -u {shlex.quote(args.input)} -o parameters.txt")
+            fallparams_params = []
+            if os.path.exists("parameters.txt") and os.path.getsize("parameters.txt") > 0:
+                with open("parameters.txt", 'r', encoding='utf-8', errors='ignore') as pf:
+                    fallparams_params = [p.strip() for p in pf.readlines()]
+            else:
+                print(f"parameters.txt is missing or empty after running fallparams on {args.input}")
+            top_xss_params = []
+            if os.path.exists("parameters/top_xss_parameter.txt"):
+                with open("parameters/top_xss_parameter.txt", "r") as tf:
+                    top_xss_params = [p.strip() for p in tf if p.strip()]
+            combined_params = fallparams_params + top_xss_params
+            # Write combined params to a temp file
+            with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_param_file:
+                for p in combined_params:
+                    temp_param_file.write(f"{p}\n")
+                temp_param_path = temp_param_file.name
+            # Generate fuzzed URLs using x10.py (safe quoting)
+            x9_command = (
+                f"python3 {SCRIPT_ROUTE} "
+                f"-u {args.input} "
+                f"-gs all -vs suffix "
+                f"-v '>xxxx,xxxx\\',xxxx',xxxx\"' "
+                f"-p {temp_param_path} --rate-limit 1"
+            )
+            output = run_command_in_zsh(x9_command)
+            fuzzed_urls = [line.strip() for line in output.splitlines() if line.strip()]
+            # Log fuzzed URLs
+            with open(output_file, 'a') as log_file:
+                log_file.write(f"--- Fuzzed URLs for {args.input} (fallparams) ---\n{output}\n")
+            # Run nuclei in batch
+            batch_run_nuclei(fuzzed_urls)
+        else:
+            urls = run_x10py_generate_urls(args.input)
+            batch_run_nuclei(urls)
     else:
-        print("Running X10 directly on part files.")
-        run_x9_on_files(domain_files, output_file)
-
-    print(f"Results saved in {output_file}")
-
-if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        print("Usage: python3 x10_run.py [true]")
+        print("Invalid mode!")
         sys.exit(1)
 
-    parameter_discovery = len(sys.argv) == 2 and sys.argv[1].lower() == 'true'
-
-    main(parameter_discovery)
+if __name__ == "__main__":
+    main()
