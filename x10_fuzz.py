@@ -4,6 +4,7 @@ import sys
 import os
 from urllib.parse import urlparse
 from dotenv import load_dotenv  
+import argparse
 
 load_dotenv()
 
@@ -77,20 +78,22 @@ def cleanup_files(domain):
     """Clean up temporary files related to the domain (.passive and .katana)."""
     extensions = [".passive", ".katana"]
     for ext in extensions:
-        file_path = f"{domain}{ext}"
+        file_path = os.path.join('fuzz', f"{domain}{ext}")
         if os.path.exists(file_path):
             os.remove(file_path)
             print(f"Cleaned up {file_path}")
 
-def main(domain, run_katana):
+def main(domain, run_katana, use_subs=False):
     urls = []
 
     # Run X9_PASSIVE to get URLs
     print(f"Running x10_passive for domain: {domain}")
-    passive_file = f"{domain}.passive"
+    passive_file = os.path.join('fuzz', f"{domain}.passive")
 
     if not os.path.exists(passive_file):
-        x9_passive_command = f"python3 {X9_PASSIVE} {domain}"
+        x9_passive_command = f"python3 x10_passive.py {domain}"
+        if use_subs:
+            x9_passive_command += " --subs"
         run_command_in_zsh(x9_passive_command)
 
     if os.path.exists(passive_file):
@@ -112,7 +115,7 @@ def main(domain, run_katana):
         print(f"Running x10_active for host: {host}")
         katana_command = f"python3 x10_active.py {host}"
         run_command_in_zsh(katana_command)
-        katana_file = f"{host}.katana"
+        katana_file = os.path.join('fuzz', f"{host}.katana")
         if os.path.exists(katana_file):
             with open(katana_file, 'r') as f:
                 host_katana_urls = f.read().splitlines()
@@ -140,11 +143,9 @@ def main(domain, run_katana):
     cleanup_files(domain)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python x9_fuzz.py <domain> <true/false>")
-        sys.exit(1)
-
-    domain = sys.argv[1]
-    run_katana = sys.argv[2]
-
-    main(domain, run_katana)
+    parser = argparse.ArgumentParser(description="X10 Fuzz - Passive/Active URL collector with optional --subs for gau.")
+    parser.add_argument('domain', help='Domain to scan')
+    parser.add_argument('run_katana', help='Whether to run katana (true/false)')
+    parser.add_argument('--subs', action='store_true', help='Include --subs in gau command')
+    args = parser.parse_args()
+    main(args.domain, args.run_katana, use_subs=args.subs)

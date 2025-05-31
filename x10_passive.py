@@ -5,6 +5,7 @@ import sys
 import tempfile
 import subprocess
 from urllib.parse import urlparse, urlsplit
+import argparse
 
 COLOR_GRAY = "\033[90m"
 
@@ -46,6 +47,11 @@ def temp_file_path():
     with tempfile.NamedTemporaryFile(delete=False) as temp:
         return temp.name
 
+def ensure_directory_exists(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        print(f"Created directory: {directory}")
+
 def filter_and_save(input_file, domain):
     """Filter out static URLs and write valid ones to output."""
     try:
@@ -55,7 +61,8 @@ def filter_and_save(input_file, domain):
         if not lines:
             return False
 
-        with open(f"{domain}.passive", "w") as f:
+        ensure_directory_exists('fuzz')
+        with open(f"fuzz/{domain}.passive", "w") as f:
             f.write("\n".join(sorted(lines)) + "\n")
 
         return lines
@@ -63,7 +70,7 @@ def filter_and_save(input_file, domain):
         print(f"File filtering failed: {e}")
         return False
 
-def run_passive_collection(domain):
+def run_passive_collection(domain, use_subs=False):
     """Run passive URL collectors and store results."""
     print(f"{COLOR_GRAY}Starting passive scan for: {domain}{COLOR_GRAY}")
     temp_file = temp_file_path()
@@ -71,8 +78,11 @@ def run_passive_collection(domain):
     commands = [
         f"echo https://{domain}/ > {temp_file}",
         f"echo {domain} | waybackurls | sort -u | uro >> {temp_file}",
-        f"gau {domain} --threads 1 --subs | sort -u | uro >> {temp_file}"
     ]
+    if use_subs:
+        commands.append(f"gau {domain} --threads 1 --subs | sort -u | uro >> {temp_file}")
+    else:
+        commands.append(f"gau {domain} --threads 1 | sort -u | uro >> {temp_file}")
 
     for cmd in commands:
         print(f"{COLOR_GRAY}Running: {cmd}{COLOR_GRAY}")
@@ -91,23 +101,20 @@ def get_input_source():
         return sys.argv[1]
     return None
 
-def process_input(source):
+def process_input(source, use_subs=False):
     """Handle domain(s) depending on source type."""
     if os.path.isfile(source):
         with open(source, "r") as f:
             for line in f:
                 domain = extract_domain(line.strip())
                 if domain:
-                    run_passive_collection(domain)
+                    run_passive_collection(domain, use_subs=use_subs)
     else:
-        run_passive_collection(extract_domain(source))
+        run_passive_collection(extract_domain(source), use_subs=use_subs)
 
 if __name__ == "__main__":
-    user_input = get_input_source()
-    if not user_input:
-        print("Usage examples:")
-        print("  echo domain.com | python3 x10_passive.py")
-        print("  cat domains.txt | python3 x10_passive.py")
-        sys.exit(1)
-
-    process_input(user_input)
+    parser = argparse.ArgumentParser(description="Passive URL collector with optional --subs for gau.")
+    parser.add_argument('domain', help='Domain to scan (or file with domains)')
+    parser.add_argument('--subs', action='store_true', help='Include --subs in gau command')
+    args = parser.parse_args()
+    process_input(args.domain, use_subs=args.subs)

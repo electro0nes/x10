@@ -72,11 +72,12 @@ X9_PASSIVE=""            # Path to passive script: 10_passive.py
 ### 1. URL Discovery & Parameter Extraction
 
 ```bash
-python3 x10_fuzz.py example.com <true/false>
+python3 x10_fuzz.py example.com <true/false> [--subs]
 ```
 
 * `true` enables Katana for discovery (not recommended for general use)
 * `false` sticks to GAU and Wayback
+* `--subs` (optional) includes subdomains in gau passive collection
 
 This step will:
 
@@ -107,8 +108,11 @@ python3 x10.py -l discovered_urls.txt -v 'xss_payload' -p file,text -gs generate
 ### 3. Advanced Fuzzing
 
 ```bash
-python3 x10_run.py <true/false>
+python3 x10_run.py domain example.com [--fallparams] [--subs]
 ```
+
+* `--fallparams` enables parameter discovery with fallparams
+* `--subs` includes subdomains in gau passive collection
 
 This step will:
 
@@ -123,11 +127,11 @@ This step will:
 ## Example Workflow
 
 ```bash
-# Step 1: Discover URLs
-python3 x10_fuzz.py target.com false
+# Step 1: Discover URLs (with subdomains)
+python3 x10_fuzz.py target.com false --subs
 
 # Step 2: Initial XSS Scan
-python3 x10_run.py false
+python3 x10_run.py domain target.com --subs
 ```
 
 ---

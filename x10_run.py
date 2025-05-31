@@ -43,7 +43,7 @@ def is_json_response(url):
         print(f"⚠️ Skipping {url} (Unknown error: {e})")
         return True  # Skip it
 
-def send_discord_alert(nuclei_output, part_file):
+def send_discord_alert(nuclei_output):
     """Send a Discord notification with ANSI-colored output inside a code block."""
     if not DISCORD_WEBHOOK_URL:
         print("⚠️ DISCORD_WEBHOOK_URL is not set or is empty!")
@@ -244,7 +244,7 @@ def batch_run_nuclei(urls):
         log_file.write(f"--- Nuclei batch output ---\n{output}\n")
     # If 'xxxx' is in the output, send a Discord alert
     if output and "xxxx" in output:
-        send_discord_alert(output, part_file=None)
+        send_discord_alert(output)
 
 def run_subfinder_dnsx_httpx(domain):
     """Return list of alive subdomains using subfinder, dnsx, httpx."""
@@ -267,11 +267,15 @@ def main():
     parser.add_argument('mode', choices=['domain', 'wildcard', 'url'], help='Mode of operation: domain, wildcard, or url')
     parser.add_argument('input', help='Domain, wildcard domain (*.domain.tld), or URL')
     parser.add_argument('--fallparams', action='store_true', help='Enable parameter discovery with fallparams')
+    parser.add_argument('--subs', action='store_true', help='Include --subs in gau command (domain mode only)')
     args = parser.parse_args()
 
     if args.mode == 'domain':
         print(f"[MODE: DOMAIN] Running passive + active + x10_run + nuclei for {args.input}")
-        run_command_in_zsh(f"python3 x10_fuzz.py {shlex.quote(args.input)} true")
+        fuzz_cmd = f"python3 x10_fuzz.py {shlex.quote(args.input)} true"
+        if args.subs:
+            fuzz_cmd += " --subs"
+        run_command_in_zsh(fuzz_cmd)
         if args.fallparams:
             print("[+] Running fallparams pipeline...")
             output_file = os.path.join('fuzz', 'x10.res')
@@ -309,8 +313,13 @@ def main():
         # Deduplicate
         all_katana_urls = list(dict.fromkeys(all_katana_urls))
         print(f"Total unique katana URLs: {len(all_katana_urls)}")
-        # Write to fuzz/domain.part1 for compatibility with rest of pipeline
+        # Write all katana URLs to a single deduplicated file named fuzz/{domain}.katana
         ensure_directory_exists('fuzz')
+        katana_merged_file = os.path.join('fuzz', f"{domain}.katana")
+        with open(katana_merged_file, 'w') as f:
+            for url in all_katana_urls:
+                f.write(url + '\n')
+        # Write to fuzz/domain.part1 for compatibility with rest of pipeline
         part_file = os.path.join('fuzz', f"{domain}.part1")
         with open(part_file, 'w') as f:
             for url in all_katana_urls:

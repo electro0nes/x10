@@ -13,6 +13,11 @@ EXT_FILTER = (
     "woff,woff2,bmp,ico,eot,htc,swf,rtf,image,rf,txt,ml,ip"
 )
 
+def ensure_directory_exists(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        print(f"Created directory: {directory}")
+
 def extract_domain(url):
     """Extract domain from URL or return input if it's a domain."""
     if url.startswith("http"):
@@ -20,7 +25,7 @@ def extract_domain(url):
     return url.strip()
 
 def run_katana(url, host):
-    """Run katana command and write output to host.katana"""
+    """Run katana command and write output to fuzz/host.katana"""
     katana_cmd = (
         f"echo {url} | katana "
         f"-js-crawl -jsluice -known-files all "
@@ -30,7 +35,8 @@ def run_katana(url, host):
     )
     print(f"{COLOR_GRAY}Running katana on: {url}{COLOR_GRAY}")
     try:
-        with open(f"{host}.katana", "w") as output_file:
+        ensure_directory_exists('fuzz')
+        with open(os.path.join('fuzz', f"{host}.katana"), "w") as output_file:
             proc = subprocess.run(
                 ["zsh", "-c", katana_cmd],
                 stdout=output_file,
