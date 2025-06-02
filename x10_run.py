@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import tempfile
 import argparse
 import shlex
+from urllib.parse import urlparse
+import time
 load_dotenv()
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
@@ -49,35 +51,110 @@ def send_discord_alert(nuclei_output):
         print("⚠️ DISCORD_WEBHOOK_URL is not set or is empty!")
         return
 
-    now_timestamp = datetime.datetime.utcnow().isoformat()
-    formatted_output = f"```ansi\n{nuclei_output}\n```"
+    def send_with_retry(message, headers, max_retries=3, initial_delay=1):
+        """Helper function to send message with retry logic for rate limits."""
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                print(f"[DEBUG] Attempting to send Discord message (attempt {retry_count + 1}/{max_retries})")
+                print(f"[DEBUG] Message content: {json.dumps(message, indent=2)}")
+                
+                response = requests.post(DISCORD_WEBHOOK_URL, json=message, headers=headers)
+                print(f"[DEBUG] Discord API Response Status: {response.status_code}")
+                print(f"[DEBUG] Discord API Response Headers: {dict(response.headers)}")
+                
+                if response.status_code in [200, 204]:
+                    # Verify the message was actually sent
+                    if response.status_code == 204:
+                        print("[DEBUG] Message sent successfully (204 No Content)")
+                    else:
+                        try:
+                            response_json = response.json()
+                            print(f"[DEBUG] Message sent successfully. Response: {json.dumps(response_json, indent=2)}")
+                        except:
+                            print(f"[DEBUG] Message sent successfully. Raw response: {response.text}")
+                    return True, "Success"
+                
+                # Check for rate limit
+                if response.status_code == 429:  # Too Many Requests
+                    retry_after = int(response.headers.get('Retry-After', initial_delay))
+                    delay = retry_after * (2 ** retry_count)  # Exponential backoff
+                    print(f"⚠️ Discord rate limit hit. Waiting {delay} seconds before retry...")
+                    print(f"[DEBUG] Rate limit response: {response.text}")
+                    time.sleep(delay)
+                    retry_count += 1
+                    continue
+                
+                print(f"[DEBUG] Failed response: {response.text}")
+                return False, f"HTTP {response.status_code}: {response.text}"
+                
+            except Exception as e:
+                print(f"[DEBUG] Exception during send: {str(e)}")
+                if retry_count < max_retries - 1:
+                    delay = initial_delay * (2 ** retry_count)
+                    print(f"⚠️ Error sending Discord message. Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                    retry_count += 1
+                else:
+                    return False, str(e)
+        
+        return False, "Max retries exceeded"
 
-    embed = {
-        "title": "🚨 XSS Detected via X10!",
-        "description": formatted_output,  
-        "color": 16711680,  
-        "footer": {
-            "text": "XSS Alert | Automated System",
-            "icon_url": "https://cdn-icons-png.flaticon.com/512/6192/6192510.png"
-        },
-        "timestamp": now_timestamp
-    }
-
-    message = {
-        "username": "XSS Scanner",
-        "embeds": [embed]
-    }
-
-    headers = {"Content-Type": "application/json"}
-    
     try:
-        response = requests.post(DISCORD_WEBHOOK_URL, json=message, headers=headers)
-        if response.status_code in [200, 204]:  
-            print("✅ Discord alert sent successfully!")
+        now_timestamp = datetime.datetime.utcnow().isoformat()
+        # Ensure the output is properly escaped and truncated if too long
+        formatted_output = nuclei_output.replace('```', '\\`\\`\\`')  # Escape code blocks
+        if len(formatted_output) > 4000:  # Discord has a 4096 character limit for description
+            formatted_output = formatted_output[:3997] + "..."
+        
+        # Add a unique identifier to help track messages
+        message_id = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        
+        embed = {
+            "title": f"🚨 XSS Detected via X10! [ID: {message_id}]",
+            "description": f"```ansi\n{formatted_output}\n```",
+            "color": 16711680,  # Red color
+            "footer": {
+                "text": f"XSS Alert | Automated System | ID: {message_id}"
+            },
+            "timestamp": now_timestamp
+        }
+
+        # Validate embed size
+        if len(str(embed)) > 6000:  # Discord has a 6000 character limit for embeds
+            embed["description"] = f"```ansi\nOutput too large to display in Discord. Check the logs for full details.\nMessage ID: {message_id}\n```"
+
+        message = {
+            "username": "XSS Scanner",
+            "embeds": [embed],
+            "content": f"🚨 New XSS Alert! [ID: {message_id}]"  # Add a content field to ensure visibility
+        }
+
+        print(f"[DEBUG] Preparing to send Discord alert with ID: {message_id}")
+        print(f"[DEBUG] Webhook URL (first 20 chars): {DISCORD_WEBHOOK_URL[:20]}...")
+        
+        headers = {"Content-Type": "application/json"}
+        
+        # Try to send the main message with retry logic
+        success, error_msg = send_with_retry(message, headers)
+        if success:
+            print(f"✅ Discord alert sent successfully! [ID: {message_id}]")
+            print(f"[DEBUG] Please verify the message in Discord with ID: {message_id}")
         else:
-            print(f"⚠️ Failed to send Discord alert: {response.status_code} - {response.text}")
+            print(f"⚠️ Failed to send Discord alert: {error_msg}")
+            # Try to send a simpler message if the embed fails
+            simple_message = {
+                "username": "XSS Scanner",
+                "content": f"🚨 XSS Detected! Check the logs for details. [ID: {message_id}]"
+            }
+            success, error_msg = send_with_retry(simple_message, headers)
+            if success:
+                print(f"✅ Sent simplified Discord alert [ID: {message_id}]")
+            else:
+                print(f"⚠️ Failed to send simplified Discord alert: {error_msg}")
     except Exception as e:
-        print(f"⚠️ Error sending Discord alert: {str(e)}")
+        print(f"⚠️ Error preparing Discord alert: {str(e)}")
+        print(f"[DEBUG] Full error details: {str(e)}")
 
 def run_command_in_zsh(command):
     """Run a shell command and return its output."""
@@ -172,24 +249,34 @@ def run_fallparams_on_files(domain_files, output_file):
                 if not combined_params:  # Skip if no parameters found
                     continue
                 
-                with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_param_file:
-                    for p in combined_params:
-                        temp_param_file.write(f"{p}\n")
-                    temp_param_path = temp_param_file.name
+                temp_param_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_param_file:
+                        for p in combined_params:
+                            temp_param_file.write(f"{p}\n")
+                        temp_param_path = temp_param_file.name
 
-                json_output = {
-                    "urls": [url],
-                    "params": combined_params
-                }
-                x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1'
-                output_j = run_command_in_zsh(x9_command)
-                if output_j:
-                    fuzzed_urls = [line.strip() for line in output_j.splitlines() if line.strip()]
-                    all_fuzzed_urls.extend(fuzzed_urls)
+                    json_output = {
+                        "urls": [url],
+                        "params": combined_params
+                    }
+                    x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1'
+                    output_j = run_command_in_zsh(x9_command)
+                    if output_j:
+                        fuzzed_urls = [line.strip() for line in output_j.splitlines() if line.strip()]
+                        all_fuzzed_urls.extend(fuzzed_urls)
 
-                if output_file:
-                    with open(output_file, 'a') as log_file:
-                        log_file.write(f"--- Fuzzed URLs for {url} from {part_file} ---\n{output_j}\n")
+                    if output_file:
+                        with open(output_file, 'a') as log_file:
+                            log_file.write(f"--- Fuzzed URLs for {url} from {part_file} ---\n{output_j}\n")
+                finally:
+                    # Clean up temporary parameter file
+                    if temp_param_path and os.path.exists(temp_param_path):
+                        try:
+                            os.remove(temp_param_path)
+                            print(f"[+] Cleaned up temporary parameter file: {temp_param_path}")
+                        except Exception as e:
+                            print(f"Warning: Failed to remove temporary parameter file {temp_param_path}: {e}")
 
             os.remove(part_file)
             print(f"Removed processed file: {part_file}")
@@ -232,25 +319,61 @@ def batch_run_nuclei(urls , domain):
     batch_size = 1000
     total_urls = len(urls)
     print(f"[+] Splitting {total_urls} URLs into batches of {batch_size}...")
+    
+    # Create a directory for nuclei findings if it doesn't exist
+    nuclei_findings_dir = os.path.join('fuzz', 'nuclei_findings')
+    ensure_directory_exists(nuclei_findings_dir)
+    
     for i in range(0, total_urls, batch_size):
         batch = urls[i:i + batch_size]
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
-            for url in batch:
-                tmp.write(url + '\n')
-            tmp_path = tmp.name
-        print(f"[+] Running nuclei on batch {i//batch_size + 1} ({len(batch)} URLs)...")
-        nuclei_cmd = f"nuclei -l {tmp_path} -t {NUCLEI_ROUTE} -var domain=https://{domain} -silent"
-        output = run_command_in_zsh(nuclei_cmd)
-        os.remove(tmp_path)
-        # Log nuclei output to fuzz/x10.res
-        ensure_directory_exists('fuzz')
-        output_file = os.path.join('fuzz', 'x10.res')
-        ensure_directory_exists(os.path.dirname(output_file))
-        with open(output_file, 'a') as log_file:
-            log_file.write(f"--- Nuclei batch {i//batch_size + 1} output ---\n{output}\n")
-        # If 'xxxx' is in the output, send a Discord alert
-        if output and "xxxx" in output:
-            send_discord_alert(output)
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
+                for url in batch:
+                    tmp.write(url + '\n')
+                tmp_path = tmp.name
+            print(f"[+] Running nuclei on batch {i//batch_size + 1} ({len(batch)} URLs)...")
+            nuclei_cmd = f"nuclei -l {tmp_path} -t {NUCLEI_ROUTE} -var domain=https://{domain} -silent"
+            output = run_command_in_zsh(nuclei_cmd)
+            
+            # Log nuclei output to fuzz/x10.res
+            ensure_directory_exists('fuzz')
+            output_file = os.path.join('fuzz', 'x10.res')
+            ensure_directory_exists(os.path.dirname(output_file))
+            with open(output_file, 'a') as log_file:
+                log_file.write(f"--- Nuclei batch {i//batch_size + 1} output ---\n{output}\n")
+            
+            # If 'xxxx' is in the output, save to a separate file and send Discord alert
+            if output and "xxxx" in output:
+                # Generate timestamp for the filename
+                timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                finding_filename = f"xss_finding_{timestamp}.txt"
+                finding_path = os.path.join(nuclei_findings_dir, finding_filename)
+                
+                # Save the nuclei output to a separate file
+                with open(finding_path, 'w') as f:
+                    f.write(f"=== XSS Finding from Nuclei Scan ===\n")
+                    f.write(f"Timestamp: {datetime.datetime.utcnow().isoformat()}\n")
+                    f.write(f"Domain: {domain}\n")
+                    f.write(f"Batch: {i//batch_size + 1}\n")
+                    f.write(f"Total URLs in batch: {len(batch)}\n")
+                    f.write(f"Batch URLs:\n")
+                    for url in batch:
+                        f.write(f"- {url}\n")
+                    f.write(f"\n=== Nuclei Output ===\n")
+                    f.write(output)
+                    f.write(f"\n=== End of Finding ===\n")
+                
+                print(f"[+] XSS finding saved to: {finding_path}")
+                send_discord_alert(output)
+        finally:
+            # Clean up temporary file
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                    print(f"[+] Cleaned up temporary file: {tmp_path}")
+                except Exception as e:
+                    print(f"Warning: Failed to remove temporary file {tmp_path}: {e}")
 
 def run_subfinder_dnsx_httpx(domain):
     """Return list of alive subdomains using subfinder, dnsx, httpx."""
@@ -267,6 +390,19 @@ def run_x10py_generate_urls(url):
     print(cmd)
     urls = [line.strip() for line in output.splitlines() if line.strip()]
     return urls
+
+def extract_domain_from_url(url):
+    """Extract domain from a URL."""
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc
+        # Remove port if present
+        if ':' in domain:
+            domain = domain.split(':')[0]
+        return domain
+    except Exception as e:
+        print(f"Error extracting domain from URL: {e}")
+        return None
 
 def main():
     parser = argparse.ArgumentParser(description="X10 Advanced XSS Discovery Runner")
@@ -376,7 +512,7 @@ def main():
         if args.run_nuclei:
             if os.path.exists(nuclei_output):
                 print("[+] Running nuclei (--run-nuclei) because fuzz/x10.res exists.")
-                batch_run_nuclei(urls_to_scan , args.input)
+                batch_run_nuclei(urls_to_scan , domain)
             else:
                 print("[+] Skipping nuclei (--run-nuclei) because fuzz/x10.res does not exist.")
         else:
@@ -387,6 +523,13 @@ def main():
         print(f"[MODE: URL] Running x10.py + param + nuclei for {args.input}")
         output_file = os.path.join('fuzz', 'x10.res')
         ensure_directory_exists(os.path.dirname(output_file))
+        
+        # Extract domain from input URL
+        domain = extract_domain_from_url(args.input)
+        if not domain:
+            print("Error: Could not extract domain from input URL")
+            sys.exit(1)
+        print(f"[+] Extracted domain: {domain}")
         
         # Only run x10_fuzz.py if --skip-fuzz is not set
         if not args.skip_fuzz:
@@ -413,36 +556,46 @@ def main():
                 with open("parameters/top_xss_parameter.txt", "r") as tf:
                     top_xss_params = [p.strip() for p in tf if p.strip()]
             combined_params = fallparams_params + top_xss_params
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_param_file:
-                for p in combined_params:
-                    temp_param_file.write(f"{p}\n")
-                temp_param_path = temp_param_file.name
-            x9_command = (
-                f"python3 {SCRIPT_ROUTE} "
-                f"-u {args.input} "
-                f"-gs all -vs suffix "
-                f"-v '>xxxx,xxxx\\',xxxx',xxxx\"' "
-                f"-p {temp_param_path} --rate-limit 1"
-            )
-            output = run_command_in_zsh(x9_command)
-            fuzzed_urls = [line.strip() for line in output.splitlines() if line.strip()]
-            with open(output_file, 'a') as log_file:
-                log_file.write(f"--- Fuzzed URLs for {args.input} (fallparams) ---\n{output}\n")
-            batch_run_nuclei(fuzzed_urls, args.input)
+            temp_param_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_param_file:
+                    for p in combined_params:
+                        temp_param_file.write(f"{p}\n")
+                    temp_param_path = temp_param_file.name
+                x9_command = (
+                    f"python3 {SCRIPT_ROUTE} "
+                    f"-u {args.input} "
+                    f"-gs all -vs suffix "
+                    f"-v '>xxxx,xxxx\\',xxxx',xxxx\"' "
+                    f"-p {temp_param_path} --rate-limit 1"
+                )
+                output = run_command_in_zsh(x9_command)
+                fuzzed_urls = [line.strip() for line in output.splitlines() if line.strip()]
+                with open(output_file, 'a') as log_file:
+                    log_file.write(f"--- Fuzzed URLs for {args.input} (fallparams) ---\n{output}\n")
+                batch_run_nuclei(fuzzed_urls, domain)
+            finally:
+                # Clean up temporary parameter file
+                if temp_param_path and os.path.exists(temp_param_path):
+                    try:
+                        os.remove(temp_param_path)
+                        print(f"[+] Cleaned up temporary parameter file: {temp_param_path}")
+                    except Exception as e:
+                        print(f"Warning: Failed to remove temporary parameter file {temp_param_path}: {e}")
         else:
             urls = run_x10py_generate_urls(args.input)
-            batch_run_nuclei(urls, args.input)
+            batch_run_nuclei(urls, domain)
         
         nuclei_output = os.path.join('fuzz', 'x10.res')
         if args.run_nuclei:
             if os.path.exists(nuclei_output):
                 print("[+] Running nuclei (--run-nuclei) because fuzz/x10.res exists.")
-                batch_run_nuclei(urls, args.input)
+                batch_run_nuclei(urls, domain)
             else:
                 print("[+] Skipping nuclei (--run-nuclei) because fuzz/x10.res does not exist.")
         else:
             print("[+] Running nuclei (default behavior)...")
-            batch_run_nuclei(urls, args.input)
+            batch_run_nuclei(urls, domain)
     else:
         print("Invalid mode!")
         sys.exit(1)
