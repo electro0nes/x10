@@ -1,9 +1,12 @@
 id: detect-electro0neinject
+
 info:
-  name: Detect electro0neinject Patterns
+  name: Detect electro0neinject Patterns and Server Errors
   author: MoeinErfanian
   severity: medium
-  description: This template detects specific electro0neinject patterns in the body of HTTP responses.
+  description: |
+    This template detects specific electro0neinject patterns in HTTP response bodies
+    and reports any HTTP 500 status code as informational.
 
 requests:
   - method: GET
@@ -12,6 +15,7 @@ requests:
     matchers-condition: or
     matchers:
       - type: word
+        name: xss-test
         words:
           - ">xxxx"
           - 'xxxx""'
@@ -23,6 +27,10 @@ requests:
           - "xxxx;"
         part: body
         condition: or
+      - type: status
+        name: server-error
+        status:
+          - 500
 
   - method: POST
     path:
@@ -30,6 +38,7 @@ requests:
     matchers-condition: or
     matchers:
       - type: word
+        name: xss-test
         words:
           - ">xxxx"
           - 'xxxx""'
@@ -41,3 +50,7 @@ requests:
           - "xxxx;"
         part: body
         condition: or
+      - type: status
+        name: server-error
+        status:
+          - 500
