@@ -225,7 +225,7 @@ def collect_urls_from_fuzz():
                 urls.extend([line.strip() for line in f if line.strip()])
     return urls
 
-def batch_run_nuclei(urls):
+def batch_run_nuclei(urls , domain):
     if not urls:
         print("No URLs to scan with nuclei.")
         return
@@ -239,7 +239,7 @@ def batch_run_nuclei(urls):
                 tmp.write(url + '\n')
             tmp_path = tmp.name
         print(f"[+] Running nuclei on batch {i//batch_size + 1} ({len(batch)} URLs)...")
-        nuclei_cmd = f"nuclei -l {tmp_path} -t {NUCLEI_ROUTE} -silent"
+        nuclei_cmd = f"nuclei -l {tmp_path} -t {NUCLEI_ROUTE} -var domain=https://{domain} -silent"
         output = run_command_in_zsh(nuclei_cmd)
         os.remove(tmp_path)
         # Log nuclei output to fuzz/x10.res
@@ -307,12 +307,12 @@ def main():
         if args.run_nuclei:
             if os.path.exists(nuclei_output):
                 print("[+] Running nuclei (--run-nuclei) because fuzz/x10.res exists.")
-                batch_run_nuclei(urls_to_scan)
+                batch_run_nuclei(urls_to_scan , args.input)
             else:
                 print("[+] Skipping nuclei (--run-nuclei) because fuzz/x10.res does not exist.")
         else:
             print("[+] Running nuclei (default behavior)...")
-            batch_run_nuclei(urls_to_scan)
+            batch_run_nuclei(urls_to_scan , args.input)
 
     elif args.mode == 'wildcard':
         print(f"[MODE: WILDCARD] Running katana only for all subdomains and main domain for {args.input}")
@@ -376,12 +376,12 @@ def main():
         if args.run_nuclei:
             if os.path.exists(nuclei_output):
                 print("[+] Running nuclei (--run-nuclei) because fuzz/x10.res exists.")
-                batch_run_nuclei(urls_to_scan)
+                batch_run_nuclei(urls_to_scan , args.input)
             else:
                 print("[+] Skipping nuclei (--run-nuclei) because fuzz/x10.res does not exist.")
         else:
             print("[+] Running nuclei (default behavior)...")
-            batch_run_nuclei(urls_to_scan)
+            batch_run_nuclei(urls_to_scan, domain)
 
     elif args.mode == 'url':
         print(f"[MODE: URL] Running x10.py + param + nuclei for {args.input}")
@@ -428,21 +428,21 @@ def main():
             fuzzed_urls = [line.strip() for line in output.splitlines() if line.strip()]
             with open(output_file, 'a') as log_file:
                 log_file.write(f"--- Fuzzed URLs for {args.input} (fallparams) ---\n{output}\n")
-            batch_run_nuclei(fuzzed_urls)
+            batch_run_nuclei(fuzzed_urls, args.input)
         else:
             urls = run_x10py_generate_urls(args.input)
-            batch_run_nuclei(urls)
+            batch_run_nuclei(urls, args.input)
         
         nuclei_output = os.path.join('fuzz', 'x10.res')
         if args.run_nuclei:
             if os.path.exists(nuclei_output):
                 print("[+] Running nuclei (--run-nuclei) because fuzz/x10.res exists.")
-                batch_run_nuclei(urls)
+                batch_run_nuclei(urls, args.input)
             else:
                 print("[+] Skipping nuclei (--run-nuclei) because fuzz/x10.res does not exist.")
         else:
             print("[+] Running nuclei (default behavior)...")
-            batch_run_nuclei(urls)
+            batch_run_nuclei(urls, args.input)
     else:
         print("Invalid mode!")
         sys.exit(1)

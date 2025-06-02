@@ -6,16 +6,27 @@ info:
   severity: medium
   description: |
     This template detects specific electro0neinject patterns in HTTP response bodies
-    and reports any HTTP 500 status code as informational.
+    and reports any HTTP 500 status code as informational. It includes custom headers
+    like User-Agent and Referer to bypass basic WAFs and simulate realistic traffic.
+
+variables:
+  domain: "https://test.com" # manually set or override with CLI -var domain=...
 
 requests:
   - method: GET
     path:
       - "{{BaseURL}}"
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0
+      Accept: "*/*"
+      Accept-Language: "en-US,en;q=0.9"
+      Accept-Encoding: gzip, deflate, br
+      X-Forwarded-For: 127.0.0.1
+      Referer: "{{domain}}"
     matchers-condition: or
     matchers:
       - type: word
-        name: xss-test
+        name: xss
         words:
           - ">xxxx"
           - 'xxxx""'
@@ -35,10 +46,17 @@ requests:
   - method: POST
     path:
       - "{{BaseURL}}"
+    headers:
+      User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:108.0) Gecko/20100101 Firefox/108.0
+      Accept: "*/*"
+      Accept-Language: "en-US,en;q=0.9"
+      Accept-Encoding: gzip, deflate, br
+      X-Forwarded-For: 127.0.0.1
+      Referer: "{{domain}}"
     matchers-condition: or
     matchers:
       - type: word
-        name: xss-test
+        name: xss
         words:
           - ">xxxx"
           - 'xxxx""'
