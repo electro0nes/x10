@@ -1,182 +1,188 @@
-# X10 - Advanced XSS Discovery Suite
+# 🎯 X10 - Advanced XSS Discovery Tool
 
-![X10 Banner](https://archive.org/download/anonymus-hacker-computer-4k-wallpaper-preview/anonymus-hacker-computer-4k-wallpaper-preview.jpg "X10 Tool Banner")
+[![Python Version](https://img.shields.io/badge/python-3.x-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Discord](https://img.shields.io/badge/discord-integration-7289DA.svg)](https://discord.com)
 
-## Overview
+> 🔍 A powerful and automated XSS (Cross-Site Scripting) discovery tool that combines multiple scanning techniques to identify potential XSS vulnerabilities in web applications.
 
-**X10** is a powerful automated Cross-Site Scripting (XSS) discovery suite that streamlines the entire process of uncovering XSS vulnerabilities. It uses a modular pipeline consisting of:
+![X10 Banner](https://i.imgur.com/placeholder.png)
 
-1. **URL Discovery** – Harvests URLs using Wayback Machine and GAU
-2. **Parameter Analysis** – Extracts and analyzes query parameters
-3. **XSS Fuzzing** – Runs intelligent fuzzing using crafted payloads
+## ✨ Features
+
+### 🎮 Multiple Scanning Modes
+- **Domain Mode** 🏢 - Full scan of a target domain
+- **Wildcard Mode** 🌐 - Scan all subdomains of a target domain
+- **URL Mode** 🔗 - Scan a single URL
+
+### 🔄 Advanced Scanning Pipeline
+- **Passive Reconnaissance** 📡 - Using multiple tools
+- **Active Scanning** 🎯 - With Katana
+- **Parameter Discovery** 🔎 - Using fallparams
+- **XSS Payload Generation** 💉 - And testing
+- **Nuclei Integration** 🧪 - For vulnerability scanning
+
+### 🧠 Smart Features
+- **Batch Processing** 📦 - URLs processed in batches of 1000
+- **Smart Filtering** 🚫 - Automatic filtering of non-relevant file types
+- **JSON Detection** 📄 - Skip JSON responses automatically
+- **Discord Alerts** 🔔 - Real-time vulnerability notifications
+- **Configurable Options** ⚙️ - Flexible scanning parameters
 
 ---
 
-## Features
+## 📋 Prerequisites
 
-* 🔍 Comprehensive URL discovery via multiple sources
-* 🧐 Smart parameter extraction and analysis
-* 🎯 Intelligent and customizable XSS payload fuzzing
-* 📊 Supports structured output (JSON, text)
-* ⚡ Parallel and batch processing for faster scanning
+### 🐍 Python Requirements
+- Python 3.x
+- Required packages:
+  - `requests`
+  - `python-dotenv`
+
+### 🛠️ Required Tools
+- `subfinder` - Subdomain enumeration
+- `dnsx` - DNS toolkit
+- `httpx` - HTTP toolkit
+- `nuclei` - Vulnerability scanner
+- `fallparams` - Parameter discovery
+- `katana` - Web crawling
+- `gau` - URL discovery
 
 ---
 
-## Installation
+## 🚀 Installation
 
-### Prerequisites
-
+1. **Clone the repository**
 ```bash
-# Install required Python dependencies
-pip3 install -r requirements.txt
-
-# Install URO
-git clone https://github.com/s0md3v/uro && cd uro && sudo python3 setup.py install
-
-# Install Waybackurls
-go install github.com/tomnomnom/waybackurls@latest
-
-# Install GAU
-go install github.com/lc/gau/v2/cmd/gau@latest
-
-# Install Fallparams
-go install github.com/ImAyrix/fallparams@latest
-
-# Install Katana
-go install github.com/projectdiscovery/katana/cmd/katana@latest
+git clone https://github.com/yourusername/x10.git
+cd x10
 ```
 
-Make scripts executable:
-
+2. **Install Python dependencies**
 ```bash
-chmod +x x10.py x10_run.py x10_fuzz.py x10_passive.py
+pip install -r requirements.txt
 ```
 
----
+3. **Configure environment**
+Create a `.env` file:
+```env
+# Discord webhook for real-time alerts
+DISCORD_WEBHOOK_URL=your_discord_webhook_url
 
-## Configuration
+# Path to Nuclei templates
+NUCLEI_ROUTE=path_to_nuclei_templates
 
-Create a `.env` file with the following variables:
-
-```bash
-DISCORD_WEBHOOK_URL=""   # Discord webhook for notifications
-NUCLEI_ROUTE=""          # Path to your Nuclei templates (e.g., xss-discovery.yaml)
-SCRIPT_ROUTE=""          # Path to custom script: 10.py
-X9_PASSIVE=""            # Path to passive script: 10_passive.py
-```
-
----
-
-## Usage
-
-### 1. URL Discovery & Parameter Extraction
-
-```bash
-python3 x10_fuzz.py example.com <true/false> [--subs]
-```
-
-* `true` enables Katana for discovery (not recommended for general use)
-* `false` sticks to GAU and Wayback
-* `--subs` (optional) includes subdomains in gau passive collection
-
-This step will:
-
-* Gather URLs from multiple sources
-* Deduplicate them
-* Extract and identify parameters
-
----
-
-### 2. XSS Testing
-
-```bash
-python3 x10.py -l discovered_urls.txt -v 'xss_payload' -p file,text -gs generate_strategy -vs value_strategy -o json -m get,post
-```
-
-**Options:**
-
-* `-l` File containing URLs to test
-* `-v` XSS payload to inject
-* `-p` Parameter sources (`file`, `text`, or both)
-* `-gs` Generation strategy (e.g., reflect-based, param combo)
-* `-vs` Value strategy (e.g., random, static, mirrored)
-* `-o` Output format (`json`, `text`)
-* `-m` HTTP methods to test (`get`, `post`)
-
----
-
-### 3. Advanced Fuzzing
-
-```bash
-python3 x10_run.py domain example.com [--fallparams] [--subs]
-```
-
-* `--fallparams` enables parameter discovery with fallparams
-* `--subs` includes subdomains in gau passive collection
-
-This step will:
-
-* Process the collected URLs in batches
-* Apply advanced payload fuzzing
-* Test multiple parameter/value combinations
-
-> ✅ Recommended: Use `false` for fallparams option unless explicitly needed.
-
----
-
-## Example Workflow
-
-```bash
-# Step 1: Discover URLs (with subdomains)
-python3 x10_fuzz.py target.com false --subs
-
-# Step 2: Initial XSS Scan
-python3 x10_run.py domain target.com --subs
+# Path to X10 script
+SCRIPT_ROUTE=path_to_x10_script
 ```
 
 ---
 
-## Output Formats
+## 💻 Usage
 
-Supported formats:
-
-* `JSON` – Machine-readable, useful for integrations
-* `Text` – Human-readable, ideal for quick reviews
-
-Use the `-o` flag to select the format:
-
+### Basic Command
 ```bash
--o json,text
+python3 x10_run.py [mode] [input] [options]
+```
+
+### 🎯 Scanning Modes
+
+#### 1. Domain Mode
+```bash
+python3 x10_run.py domain example.com
+```
+
+#### 2. Wildcard Mode
+```bash
+python3 x10_run.py wildcard *.example.com
+```
+
+#### 3. URL Mode
+```bash
+python3 x10_run.py url https://example.com/page
+```
+
+### ⚙️ Available Options
+
+| Option | Description |
+|--------|-------------|
+| `--fallparams` | Enable parameter discovery using fallparams |
+| `--subs` | Include subdomains in gau command (domain mode only) |
+| `--skip-fuzz` | Skip fuzzing if fuzz/*.part files exist |
+| `--run-nuclei` | Run nuclei only if fuzz/x10.res exists |
+
+### 📝 Usage Examples
+
+1. **Full domain scan with subdomain discovery**
+```bash
+python3 x10_run.py domain example.com --subs
+```
+
+2. **Wildcard scan with fallparams**
+```bash
+python3 x10_run.py wildcard *.example.com --fallparams
+```
+
+3. **Single URL scan with nuclei only**
+```bash
+python3 x10_run.py url https://example.com/page --run-nuclei
 ```
 
 ---
 
-## Bash Aliases
+## 📊 Output
 
-Add the following to your `.bashrc` or `.zshrc`:
+The tool generates the following output files in the `fuzz` directory:
 
-```bash
-alias x10_fuzz="python3 $HOME/Projects/automation/x10/x10_fuzz.py"
-alias x10_run="python3 $HOME/Projects/automation/x10/x10_run.py"
-alias x10="python3 $HOME/Projects/automation/x10/x10.py"
-alias x10_passive="python3 $HOME/Projects/automation/x10/x10_passive.py"
-```
-
----
-
-## Contributing
-
-Contributions are welcome! Please submit a pull request or open an issue to suggest features or report bugs.
+| File Type | Description |
+|-----------|-------------|
+| `*.part` | Intermediate URL lists |
+| `x10.res` | Combined results from all scanning phases |
+| `nuclei_findings/` | Directory containing detailed XSS findings |
+| `*.katana` | Katana scanning results (wildcard mode only) |
 
 ---
 
-## License
+## 🔔 Discord Integration
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+The tool sends real-time alerts to Discord when XSS vulnerabilities are detected. Each alert includes:
+- 🚨 Vulnerability details
+- 🔗 Affected URLs
+- ⏰ Timestamp
+- 🆔 Unique message ID
+
+Configure your Discord webhook URL in the `.env` file to enable this feature.
 
 ---
 
-## Disclaimer
+## 📝 Notes
 
-> This tool is intended for **educational** and **authorized security testing** only.
-> Unauthorized use of this tool against targets without permission is **illegal**.
+- 🔄 URLs are processed in batches of 1000 for optimal performance
+- 🚫 Common file extensions (images, documents, etc.) are automatically filtered
+- 📄 JSON responses are detected and skipped
+- 🧹 Temporary files are automatically cleaned up
+- ⚡ Rate limiting is implemented to prevent overwhelming targets
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## ⚠️ Disclaimer
+
+> ⚠️ **IMPORTANT**: This tool is for educational and authorized security testing purposes only. Always obtain proper authorization before testing any website or application.
+
+---
+
+<div align="center">
+Made with ❤️ by the X10 Team
+</div>
