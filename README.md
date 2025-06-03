@@ -6,7 +6,7 @@
 
 > 🔍 A powerful and automated XSS (Cross-Site Scripting) discovery tool that combines multiple scanning techniques to identify potential XSS vulnerabilities in web applications.
 
-![X10 Banner](https://i.imgur.com/placeholder.png)
+![X10 Banner](https://i.postimg.cc/rwyV0wbV/Screenshot-2025-06-03-at-11-24-43-PM.png)
 
 ## ✨ Features
 
@@ -54,7 +54,7 @@
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/x10.git
+git clone https://github.com/electro0nes/x10.git
 cd x10
 ```
 
@@ -74,6 +74,9 @@ NUCLEI_ROUTE=path_to_nuclei_templates
 
 # Path to X10 script
 SCRIPT_ROUTE=path_to_x10_script
+
+# Path to x10_passive.py
+X9_PASSIVE=path_to_x10_passive
 ```
 
 ---
@@ -184,5 +187,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-Made with ❤️ by the X10 Team
+Made with ❤️ by Electro0ne
 </div>
