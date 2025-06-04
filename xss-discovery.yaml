@@ -28,7 +28,7 @@ requests:
       - type: word
         name: xss
         words:
-          - ">xxxx"
+          - "<b/xxxx"
           - 'xxxx""'
           - "xxxx''"
           - 'xxxx\\""'
@@ -58,7 +58,7 @@ requests:
       - type: word
         name: xss
         words:
-          - ">xxxx"
+          - "<b/xxxx"
           - 'xxxx""'
           - "xxxx''"
           - 'xxxx\\""'
