@@ -74,11 +74,17 @@ def run_passive_collection(domain, use_subs=False):
     """Run passive URL collectors and store results."""
     print(f"{COLOR_GRAY}Starting passive scan for: {domain}{COLOR_GRAY}")
     temp_file = temp_file_path()
-
+    print(domain)
     commands = [
         f"echo https://{domain}/ > {temp_file}",
-        f"echo {domain} | waybackurls | sort -u | uro >> {temp_file}",
     ]
+    
+    # Use -no-subs with waybackurls when use_subs is False
+    if use_subs:
+        commands.append(f"echo {domain} | waybackurls | sort -u | uro >> {temp_file}")
+    else:
+        commands.append(f"echo {domain} | waybackurls -no-subs | sort -u | uro >> {temp_file}")
+
     if use_subs:
         commands.append(f"gau {domain} --threads 1 --subs | sort -u | uro >> {temp_file}")
     else:

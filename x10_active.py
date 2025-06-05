@@ -20,26 +20,35 @@ def ensure_directory_exists(directory):
 
 def extract_domain(url):
     """Extract domain from URL or return input if it's a domain."""
-    if url.startswith("http"):
-        return urlsplit(url).netloc
-    return url.strip()
+    return urlsplit(url).netloc if url.startswith("http") else url.strip()
+
+def get_clean_domain(domain):
+    """Get clean domain without www. prefix for file naming."""
+    # Remove any colons and www prefix
+    domain = domain.split(':')[0]  # Remove any port numbers
+    if domain.startswith('www.'):
+        domain = domain[4:]
+    return domain
 
 def run_katana(url, host):
     """Run katana command and write output to fuzz/host.katana"""
+    # Clean the host for file naming but keep original for crawl scope
+    clean_domain = get_clean_domain(host)
     katana_cmd = (
         f"echo {url} | katana "
         f"-js-crawl -jsluice -known-files all "
         f"-automatic-form-fill -silent "
-        f"-crawl-scope {host} "
+        f"-crawl-scope {host} "  # Use original host for crawl scope
         f"-extension-filter {EXT_FILTER}"
     )
     print(f"{COLOR_GRAY}Running katana on: {url}{COLOR_GRAY}")
     try:
         ensure_directory_exists('fuzz')
-        with open(os.path.join('fuzz', f"{host}.katana"), "w") as output_file:
+        output_file = os.path.join('fuzz', f"{clean_domain}.katana")
+        with open(output_file, "w") as f:
             proc = subprocess.run(
                 ["zsh", "-c", katana_cmd],
-                stdout=output_file,
+                stdout=f,
                 stderr=subprocess.PIPE,
                 text=True
             )

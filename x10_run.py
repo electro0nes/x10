@@ -200,7 +200,7 @@ def run_x9_on_files(domain_files, output_file):
                     continue  # Skip URLs with JSON responses
 
                 print(f"Generating fuzzed URLs for {url} from {part_file}")
-                x9_command = f'python3 {SCRIPT_ROUTE} -u \'{url}\' -gs all -vs suffix -v "<b/xxxx,xxxx\\",xxxx\',xxxx" -p parameters/top_xss_parameter.txt --rate-limit 1'
+                x9_command = f'python3 {SCRIPT_ROUTE} -u \'{url}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p parameters/top_xss_parameter.txt --rate-limit 1'
                 output = run_command_in_zsh(x9_command)
                 if output:
                     fuzzed_urls = [line.strip() for line in output.splitlines() if line.strip()]
@@ -260,7 +260,7 @@ def run_fallparams_on_files(domain_files, output_file):
                         "urls": [url],
                         "params": combined_params
                     }
-                    x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v "<b/xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1'
+                    x9_command = f'python3 {SCRIPT_ROUTE} -j \'{json.dumps(json_output)}\' -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" -p {temp_param_path} --rate-limit 1'
                     output_j = run_command_in_zsh(x9_command)
                     if output_j:
                         fuzzed_urls = [line.strip() for line in output_j.splitlines() if line.strip()]
@@ -385,7 +385,7 @@ def run_subfinder_dnsx_httpx(domain):
 
 def run_x10py_generate_urls(url):
     """Run x10.py to generate fuzzed URLs for a single URL input."""
-    cmd = f'python3 x10.py -u {url} -p parameters/top_xss_parameter.txt -gs all -vs suffix -v "<b/xxxx,xxxx\\",xxxx\',xxxx" '
+    cmd = f'python3 x10.py -u {url} -p parameters/top_xss_parameter.txt -gs all -vs suffix -v ">xxxx,xxxx\\",xxxx\',xxxx" '
     output = run_command_in_zsh(cmd)
     print(cmd)
     urls = [line.strip() for line in output.splitlines() if line.strip()]
@@ -566,7 +566,7 @@ def main():
                     f"python3 {SCRIPT_ROUTE} "
                     f"-u {args.input} "
                     f"-gs all -vs suffix "
-                    f"-v '<b/xxxx,xxxx\\',xxxx',xxxx\"' "
+                    f"-v '>xxxx,xxxx\\',xxxx',xxxx\"' "
                     f"-p {temp_param_path} --rate-limit 1"
                 )
                 output = run_command_in_zsh(x9_command)

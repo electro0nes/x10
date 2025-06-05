@@ -104,18 +104,13 @@ def main(domain, run_katana, use_subs=False):
     # Normalize URLs (https + remove :80/:443)
     urls = [normalize_url(url) for url in urls]
 
-    # Run katana on each unique host from passive URLs
-    unique_hosts = set()
-    for url in urls:
-        parsed = urlparse(url)
-        if parsed.netloc:
-            unique_hosts.add(parsed.netloc)
+    # Run katana only on the provided domain
     katana_urls = []
-    for host in unique_hosts:
-        print(f"Running x10_active for host: {host}")
-        katana_command = f"python3 x10_active.py {host}"
+    if run_katana.lower() == 'true':
+        print(f"Running x10_active for domain: {domain}")
+        katana_command = f"python3 x10_active.py {domain}"
         run_command_in_zsh(katana_command)
-        katana_file = os.path.join('fuzz', f"{host}.katana")
+        katana_file = os.path.join('fuzz', f"{domain}.katana")
         if os.path.exists(katana_file):
             with open(katana_file, 'r') as f:
                 host_katana_urls = f.read().splitlines()
