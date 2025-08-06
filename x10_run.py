@@ -133,7 +133,7 @@ def send_discord_alert(nuclei_output):
         if success:
             print(f"[DEBUG] Please verify the message in Discord with ID: {message_id}")
         else:
-            print(f[DEBUG] Failed to send Discord alert: {error_msg}")
+            print(f"[DEBUG] Failed to send Discord alert: {error_msg}")
             # Try to send a simpler message if the embed fails
             simple_message = {
                 "username": "XSS Scanner",
