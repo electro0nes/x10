@@ -57,16 +57,12 @@ def send_discord_alert(nuclei_output):
         while retry_count < max_retries:
             try:
                 print(f"[DEBUG] Attempting to send Discord message (attempt {retry_count + 1}/{max_retries})")
-                print(f"[DEBUG] Message content: {json.dumps(message, indent=2)}")
                 
                 response = requests.post(DISCORD_WEBHOOK_URL, json=message, headers=headers)
-                print(f"[DEBUG] Discord API Response Status: {response.status_code}")
-                print(f"[DEBUG] Discord API Response Headers: {dict(response.headers)}")
-                
                 if response.status_code in [200, 204]:
                     # Verify the message was actually sent
                     if response.status_code == 204:
-                        print("[DEBUG] Message sent successfully (204 No Content)")
+                        print("[DEBUG] Message sent successfully")
                     else:
                         try:
                             response_json = response.json()
@@ -79,8 +75,7 @@ def send_discord_alert(nuclei_output):
                 if response.status_code == 429:  # Too Many Requests
                     retry_after = int(response.headers.get('Retry-After', initial_delay))
                     delay = retry_after * (2 ** retry_count)  # Exponential backoff
-                    print(f"⚠️ Discord rate limit hit. Waiting {delay} seconds before retry...")
-                    print(f"[DEBUG] Rate limit response: {response.text}")
+                    print(f"[DEBUG] Discord rate limit hit. Waiting {delay} seconds before retry...")
                     time.sleep(delay)
                     retry_count += 1
                     continue
@@ -92,7 +87,7 @@ def send_discord_alert(nuclei_output):
                 print(f"[DEBUG] Exception during send: {str(e)}")
                 if retry_count < max_retries - 1:
                     delay = initial_delay * (2 ** retry_count)
-                    print(f"⚠️ Error sending Discord message. Retrying in {delay} seconds...")
+                    print(f"[DEBUG] Error sending Discord message. Retrying in {delay} seconds...")
                     time.sleep(delay)
                     retry_count += 1
                 else:
@@ -130,30 +125,22 @@ def send_discord_alert(nuclei_output):
             "content": f"🚨 New XSS Alert! [ID: {message_id}]"  # Add a content field to ensure visibility
         }
 
-        print(f"[DEBUG] Preparing to send Discord alert with ID: {message_id}")
-        print(f"[DEBUG] Webhook URL (first 20 chars): {DISCORD_WEBHOOK_URL[:20]}...")
         
         headers = {"Content-Type": "application/json"}
         
         # Try to send the main message with retry logic
         success, error_msg = send_with_retry(message, headers)
         if success:
-            print(f"✅ Discord alert sent successfully! [ID: {message_id}]")
             print(f"[DEBUG] Please verify the message in Discord with ID: {message_id}")
         else:
-            print(f"⚠️ Failed to send Discord alert: {error_msg}")
+            print(f[DEBUG] Failed to send Discord alert: {error_msg}")
             # Try to send a simpler message if the embed fails
             simple_message = {
                 "username": "XSS Scanner",
                 "content": f"🚨 XSS Detected! Check the logs for details. [ID: {message_id}]"
             }
             success, error_msg = send_with_retry(simple_message, headers)
-            if success:
-                print(f"✅ Sent simplified Discord alert [ID: {message_id}]")
-            else:
-                print(f"⚠️ Failed to send simplified Discord alert: {error_msg}")
     except Exception as e:
-        print(f"⚠️ Error preparing Discord alert: {str(e)}")
         print(f"[DEBUG] Full error details: {str(e)}")
 
 def run_command_in_zsh(command):
